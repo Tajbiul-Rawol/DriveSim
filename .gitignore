@@ -1,0 +1,22 @@
+# --- Build output ---
+build/
+out/
+drivesim
+drivesim.exe
+*.o
+*.obj
+*.exe
+
+# --- CMake / Visual Studio ---
+CMakeCache.txt
+CMakeFiles/
+.vs/
+*.user
+
+# --- Runtime data (seeded at first run; not source) ---
+data/*.csv
+data/*.tmp
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
