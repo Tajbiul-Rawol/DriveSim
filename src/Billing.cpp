@@ -1,68 +1,89 @@
 // =============================================================================
-//  DriveSim  -  Billing.cpp   [ STUB - TO BE IMPLEMENTED ]
-//
-//  SRS Feature 4: Dynamic Pricing & Invoice Generation
-//  Owner: <teammate assigned to Pricing & Invoicing>
-//
-//  The declarations in Billing.h are the contract the rest of the application
-//  already depends on - Application::createBooking() calls PricingEngine::quote()
-//  and InvoiceRenderer::invoice(), and cancelBooking() calls
-//  cancellationReceipt(). Your job is to fill in the four bodies below.
-//
-//  RULES:
-//    * Do NOT change any signature in Billing.h.
-//    * Delete the "(void)..." lines as you start using each parameter.
-//    * Build clean with -Wall -Wextra before opening a pull request.
-//  See CONTRIBUTING.md for the full brief and acceptance criteria.
+//  DriveSim  -  Billing.cpp
 // =============================================================================
 #include "Billing.h"
 
-#include "Common.h"   // money(), padRight(), padLeft(), rule()
+#include <sstream>
 
 namespace drivesim {
 
-// ---------------------------------------------------------------------------
-//  PricingEngine
-// ---------------------------------------------------------------------------
+PriceBreakdown PricingEngine::quote(double rate, int days) const {
+    if (days < 1) days = 1;
+    PriceBreakdown pb;
+    pb.days           = days;
+    pb.dailyRate      = rate;
+    pb.rentalSubtotal = rate * days;
+    pb.serviceFee     = serviceFee_;
+    pb.taxableAmount  = pb.rentalSubtotal + pb.serviceFee;
+    pb.gst            = pb.taxableAmount * gstRate_;
+    pb.total          = pb.taxableAmount + pb.gst;
+    return pb;
+}
+
 PriceBreakdown PricingEngine::quote(const Vehicle& v, int days) const {
-    // TODO(pricing): build the full breakdown, then return it.
-    //   dailyRate      = v.effectiveDailyRate();     // base x category multiplier
-    //   rentalSubtotal = dailyRate * days;
-    //   taxableAmount  = rentalSubtotal + serviceFee_;
-    //   gst            = taxableAmount * gstRate_;
-    //   total          = taxableAmount + gst;
-    // Set every field of the PriceBreakdown (days, dailyRate, rentalSubtotal,
-    // serviceFee, taxableAmount, gst, total) before returning.
-    (void)v; (void)days;                 // <-- remove when implemented
-    return PriceBreakdown{};             // placeholder: all fields zero
+    return quote(v.effectiveDailyRate(), days);
 }
 
-PriceBreakdown PricingEngine::quote(double effectiveDailyRate, int days) const {
-    // TODO(pricing): same calculation as above, but starting from a raw daily
-    // rate instead of a Vehicle. (Tip: you can reuse the logic.)
-    (void)effectiveDailyRate; (void)days;
-    return PriceBreakdown{};
-}
+namespace {
+constexpr std::size_t W = 60;   // invoice box inner width
 
-// ---------------------------------------------------------------------------
-//  InvoiceRenderer
-// ---------------------------------------------------------------------------
+std::string boxTop()    { return "+" + rule(W, '-') + "+"; }
+std::string boxLine(const std::string& s) { return "| " + padRight(s, W - 2) + " |"; }
+// A line with a left label and right-aligned value inside the box.
+std::string kv(const std::string& label, const std::string& value) {
+    std::string left  = label;
+    std::string right = value;
+    std::size_t inner = W - 2;
+    if (left.size() + right.size() > inner)
+        left = left.substr(0, inner - right.size());
+    std::size_t gap = inner - left.size() - right.size();
+    return "| " + left + std::string(gap, ' ') + right + " |";
+}
+} // namespace
+
 std::string InvoiceRenderer::invoice(const Booking& b, const Vehicle& v,
                                      const User& customer, const PriceBreakdown& pb) {
-    // TODO(pricing): return a formatted, multi-line tax-invoice string built
-    // from the booking, vehicle, customer and price breakdown. Match the layout
-    // in the SRS (invoice no, customer, vehicle, rental period, duration, the
-    // itemised charges, GST and total). Use money()/padRight()/padLeft()/rule()
-    // from Common.h for alignment. Return the string; the caller prints it.
-    (void)b; (void)v; (void)customer; (void)pb;
-    return "  *** INVOICE NOT IMPLEMENTED YET - see Billing.cpp / CONTRIBUTING.md ***\n";
+    std::ostringstream os;
+    os << boxTop() << "\n";
+    os << boxLine("DRIVESIM  -  TAX INVOICE") << "\n";
+    os << boxLine("Fleet & Rental Management System") << "\n";
+    os << "+" << rule(W, '-') << "+\n";
+    os << kv("Invoice / Booking No:", b.id()) << "\n";
+    os << kv("Customer:", customer.fullName() + " (" + customer.id() + ")") << "\n";
+    os << boxLine("") << "\n";
+    os << boxLine("Vehicle:  " + v.displayName()) << "\n";
+    os << kv("Category:", v.category()) << "\n";
+    os << kv("Rental period:", b.startDate().toString() + "  to  " + b.endDate().toString()) << "\n";
+    os << kv("Duration:", std::to_string(pb.days) + " day(s)") << "\n";
+    os << "+" << rule(W, '-') << "+\n";
+    os << kv("Daily rate (incl. category):", money(pb.dailyRate)) << "\n";
+    os << kv("Rental (" + std::to_string(pb.days) + " x " + money(pb.dailyRate) + "):",
+             money(pb.rentalSubtotal)) << "\n";
+    os << kv("Service fee:", money(pb.serviceFee)) << "\n";
+    os << kv("Subtotal:", money(pb.taxableAmount)) << "\n";
+    os << kv("GST (10%):", money(pb.gst)) << "\n";
+    os << "+" << rule(W, '-') << "+\n";
+    os << kv("TOTAL PAYABLE:", money(pb.total)) << "\n";
+    os << boxTop() << "\n";
+    os << "Thank you for choosing DriveSim.";
+    return os.str();
 }
 
 std::string InvoiceRenderer::cancellationReceipt(const Booking& b, const Vehicle& v,
                                                  const User& customer) {
-    // TODO(pricing): return a cancellation-receipt string for the given booking.
-    (void)b; (void)v; (void)customer;
-    return "  *** CANCELLATION RECEIPT NOT IMPLEMENTED YET - see Billing.cpp ***\n";
+    std::ostringstream os;
+    os << boxTop() << "\n";
+    os << boxLine("DRIVESIM  -  CANCELLATION RECEIPT") << "\n";
+    os << "+" << rule(W, '-') << "+\n";
+    os << kv("Booking No:", b.id()) << "\n";
+    os << kv("Customer:", customer.fullName() + " (" + customer.id() + ")") << "\n";
+    os << kv("Vehicle:", v.displayName()) << "\n";
+    os << kv("Original period:", b.startDate().toString() + "  to  " + b.endDate().toString()) << "\n";
+    os << kv("Original total:", money(b.totalCost())) << "\n";
+    os << kv("Status:", "CANCELLED") << "\n";
+    os << boxTop() << "\n";
+    os << "The vehicle has been released back into the available fleet.";
+    return os.str();
 }
 
 } // namespace drivesim
